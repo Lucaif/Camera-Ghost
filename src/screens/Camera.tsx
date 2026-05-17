@@ -107,6 +107,32 @@ export default function Camera() {
     return () => window.removeEventListener('devicemotion', handler);
   }, [showGallery]);
 
+  // iOS DeviceMotion permission: must be requested inside a user gesture.
+  // On every Camera mount, attach a one-shot handler that fires on the next
+  // tap/click anywhere. iOS shows a prompt only the first time; subsequent
+  // calls resolve silently if previously granted. No-op on Android/desktop.
+  useEffect(() => {
+    const DME = (window as unknown as {
+      DeviceMotionEvent?: { requestPermission?: () => Promise<string> };
+    }).DeviceMotionEvent;
+    if (!DME?.requestPermission) return;
+
+    let done = false;
+    const onGesture = () => {
+      if (done) return;
+      done = true;
+      DME.requestPermission!().catch(() => { /* user dismissed */ });
+      window.removeEventListener('touchstart', onGesture, true);
+      window.removeEventListener('click', onGesture, true);
+    };
+    window.addEventListener('touchstart', onGesture, true);
+    window.addEventListener('click', onGesture, true);
+    return () => {
+      window.removeEventListener('touchstart', onGesture, true);
+      window.removeEventListener('click', onGesture, true);
+    };
+  }, []);
+
   // Start the camera
   const startCamera = useCallback(async (mode?: 'environment' | 'user') => {
     const wantFacing = mode ?? facing;
@@ -276,16 +302,9 @@ export default function Camera() {
           <div className="perm-tag">GHOST CAMERA</div>
           <div className="perm-heading">Acceso a la<br/>cámara</div>
           <div className="perm-desc">Para superponer fotos y alinear perspectivas, Ghost Camera necesita acceder a tu cámara.</div>
-          <button
-            className="grant-btn"
-            onClick={async () => {
-              const DME = (window as unknown as { DeviceMotionEvent?: { requestPermission?: () => Promise<string> } }).DeviceMotionEvent;
-              if (DME && typeof DME.requestPermission === 'function') {
-                try { await DME.requestPermission(); } catch { /* ignore */ }
-              }
-              startCamera();
-            }}
-          >Permitir acceso a la cámara</button>
+          <button className="grant-btn" onClick={() => startCamera()}>
+            Permitir acceso a la cámara
+          </button>
           <div className="perm-note">Solo se usa localmente.<br/>Ninguna foto sale de tu dispositivo.</div>
         </div>
       </div>
