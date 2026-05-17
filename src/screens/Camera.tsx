@@ -115,32 +115,6 @@ export default function Camera() {
     try { await DME.requestPermission(); } catch { /* ignore */ }
   }
 
-  // iOS DeviceMotion permission: must be requested inside a user gesture.
-  // On every Camera mount, attach a one-shot handler that fires on the next
-  // tap/click anywhere. iOS shows a prompt only the first time; subsequent
-  // calls resolve silently if previously granted. No-op on Android/desktop.
-  useEffect(() => {
-    const DME = (window as unknown as {
-      DeviceMotionEvent?: { requestPermission?: () => Promise<string> };
-    }).DeviceMotionEvent;
-    if (!DME?.requestPermission) return;
-
-    let done = false;
-    const onGesture = () => {
-      if (done) return;
-      done = true;
-      DME.requestPermission!().catch(() => { /* user dismissed */ });
-      window.removeEventListener('touchstart', onGesture, true);
-      window.removeEventListener('click', onGesture, true);
-    };
-    window.addEventListener('touchstart', onGesture, true);
-    window.addEventListener('click', onGesture, true);
-    return () => {
-      window.removeEventListener('touchstart', onGesture, true);
-      window.removeEventListener('click', onGesture, true);
-    };
-  }, []);
-
   // Start the camera
   const startCamera = useCallback(async (mode?: 'environment' | 'user') => {
     const wantFacing = mode ?? facing;

@@ -61,17 +61,7 @@ export default function Projects() {
               <button
                 key={item.id}
                 className="project-card"
-                onClick={async () => {
-                  // Pre-grant iOS motion permission while we still have a user gesture,
-                  // so the tilt sensor is ready by the time Camera mounts.
-                  const DME = (window as unknown as {
-                    DeviceMotionEvent?: { requestPermission?: () => Promise<string> };
-                  }).DeviceMotionEvent;
-                  if (DME?.requestPermission) {
-                    try { await DME.requestPermission(); } catch { /* ignore */ }
-                  }
-                  navigate(`/camera/${item.id}`);
-                }}
+                onClick={() => navigate(`/camera/${item.id}`)}
               >
                 <div className="project-thumb">
                   {item.ghostUri ? (
