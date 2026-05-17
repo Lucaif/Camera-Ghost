@@ -161,6 +161,18 @@ export default function Camera() {
     }).catch(() => { /* not supported */ });
   }, [camPerm, startCamera]);
 
+  // Attach stream after the <video> mounts (camPerm flips to 'granted' before render)
+  useEffect(() => {
+    if (camPerm !== 'granted') return;
+    const v = videoRef.current;
+    const s = streamRef.current;
+    if (!v || !s) return;
+    if (v.srcObject !== s) {
+      v.srcObject = s;
+      v.play().catch(() => {});
+    }
+  }, [camPerm]);
+
   // Cleanup on unmount
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
