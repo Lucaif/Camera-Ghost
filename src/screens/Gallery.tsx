@@ -50,7 +50,12 @@ export default function Gallery() {
           <div className="gallery-title">{project?.name ?? ''}</div>
           <div className="gallery-sub">{photos.length} foto{photos.length !== 1 ? 's' : ''}</div>
         </div>
-        <div style={{ width: 70 }} />
+        <button
+          className="timelapse-btn"
+          onClick={() => navigate(`/timelapse/${id}`)}
+          disabled={photos.length < 2}
+          style={photos.length < 2 ? { opacity: 0.35, pointerEvents: 'none' } : undefined}
+        >🎬 Timelapse</button>
       </div>
 
       {photos.length === 0 ? (

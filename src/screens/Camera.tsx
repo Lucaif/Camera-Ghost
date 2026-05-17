@@ -64,8 +64,8 @@ export default function Camera() {
   const [opacity, setOpacity] = useState(0.5);
   const [flash, setFlash] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showGallery, setShowGallery] = useState(false);
   const [tilt, setTilt] = useState<Tilt>({ x: 0, y: 0, z: 0 });
+  const [tiltActive, setTiltActive] = useState(false);
   const [showTilt, setShowTilt] = useState(true);
   const [ghostMode, setGhostMode] = useState<'first' | 'previous'>('first');
 
@@ -93,10 +93,10 @@ export default function Camera() {
 
   // Tilt sensor (DeviceMotionEvent normalized to g-units)
   useEffect(() => {
-    if (showGallery) return;
     const handler = (e: DeviceMotionEvent) => {
       const a = e.accelerationIncludingGravity;
-      if (!a) return;
+      if (!a || (a.x == null && a.y == null && a.z == null)) return;
+      setTiltActive(true);
       setTilt({
         x: (a.x ?? 0) / 9.81,
         y: (a.y ?? 0) / 9.81,
@@ -105,7 +105,15 @@ export default function Camera() {
     };
     window.addEventListener('devicemotion', handler);
     return () => window.removeEventListener('devicemotion', handler);
-  }, [showGallery]);
+  }, []);
+
+  async function requestMotionPermission() {
+    const DME = (window as unknown as {
+      DeviceMotionEvent?: { requestPermission?: () => Promise<string> };
+    }).DeviceMotionEvent;
+    if (!DME?.requestPermission) return;
+    try { await DME.requestPermission(); } catch { /* ignore */ }
+  }
 
   // iOS DeviceMotion permission: must be requested inside a user gesture.
   // On every Camera mount, attach a one-shot handler that fires on the next
@@ -253,26 +261,6 @@ export default function Camera() {
     }
   }
 
-  function setAsGhost(uri: string) {
-    updateProject({ ghostUri: uri, ghostTilt: { ...tilt } });
-    setGhostOn(true);
-    setShowGallery(false);
-  }
-
-  async function deletePhoto(uri: string) {
-    if (!window.confirm('¿Borrar esta foto del proyecto?')) return;
-    const newPhotos = (project?.photos ?? []).filter(p => p !== uri);
-    const newGhost = project?.ghostUri === uri
-      ? (newPhotos[newPhotos.length - 1] ?? null)
-      : project?.ghostUri ?? null;
-    await updateProject({
-      photos: newPhotos,
-      ghostUri: newGhost,
-      ghostTilt: newGhost ? project?.ghostTilt ?? null : null,
-    });
-    if (!newGhost) setGhostOn(false);
-  }
-
   async function clearGhost() {
     if (!window.confirm('¿Borrar la imagen fantasma activa?')) return;
     await updateProject({ ghostUri: null, ghostTilt: null });
@@ -335,49 +323,6 @@ export default function Camera() {
     );
   }
 
-  // ── Inline gallery ────────────────────────────────────
-  if (showGallery) {
-    return (
-      <div className="screen">
-        <div className="gallery-header">
-          <button className="gallery-back" onClick={() => setShowGallery(false)}>‹ Cámara</button>
-          <div className="gallery-center">
-            <div className="gallery-title">{project?.name}</div>
-          </div>
-          <button
-            className="timelapse-btn"
-            onClick={() => { setShowGallery(false); navigate(`/timelapse/${id}`); }}
-          >🎬 Timelapse</button>
-        </div>
-        {photos.length === 0 ? (
-          <div className="projects-empty">
-            <div className="projects-empty-icon">📷</div>
-            <div className="projects-empty-text">Sin fotos todavía</div>
-            <div className="projects-empty-sub">Captura una foto para empezar</div>
-          </div>
-        ) : (
-          <div className="scroll">
-            <div className="photo-grid">
-              {photos.map((uri, i) => (
-                <button
-                  key={i}
-                  className={`photo-cell${ghostUri === uri ? ' active' : ''}`}
-                  onClick={() => setAsGhost(uri)}
-                  onContextMenu={(e) => { e.preventDefault(); deletePhoto(uri); }}
-                >
-                  <img src={uri} alt="" />
-                  {ghostUri === uri && <span className="ghost-badge">GHOST</span>}
-                  <span className="photo-number">{i + 1}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="hint">Toca para usar como ghost · Click-derecho para borrar</div>
-      </div>
-    );
-  }
-
   // ── Camera view ───────────────────────────────────────
   return (
     <div className="screen">
@@ -403,7 +348,13 @@ export default function Camera() {
 
         {ghostTilt && showTilt && (
           <div className="tilt-container">
-            <TiltGuide current={tilt} target={ghostTilt} aligned={isAligned} />
+            {tiltActive ? (
+              <TiltGuide current={tilt} target={ghostTilt} aligned={isAligned} />
+            ) : (
+              <button className="tilt-grant-btn" onClick={requestMotionPermission}>
+                📐 Activar sensor de inclinación
+              </button>
+            )}
           </div>
         )}
 
@@ -457,7 +408,7 @@ export default function Camera() {
         <div className="controls-row">
           <button
             className={`thumb-btn${ghostUri ? ' has-ghost' : ''}`}
-            onClick={() => setShowGallery(true)}
+            onClick={() => navigate(`/gallery/${id}`)}
           >
             {ghostUri
               ? <img src={ghostUri} alt="" />
